@@ -48,7 +48,7 @@ fn main() {
         let stream_flags = fsevent::kFSEventStreamCreateFlagUseCFTypes
             | fsevent::kFSEventStreamCreateFlagFileEvents;
 
-        let paths: Vec<CFString> = vec![CFString::from_static_string("/Users/parkmycar/TestFileEvents")];
+        let paths: Vec<CFString> = vec![CFString::from_static_string("/Volumes/Extreme SSD")];
         println!("Watching paths:\n{:#?}", &paths);
 
         let cf_paths = CFArray::from_CFTypes(&paths[..]);
