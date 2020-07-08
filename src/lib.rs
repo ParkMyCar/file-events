@@ -1,6 +1,12 @@
 use core_foundation as cf;
 use fsevent_sys as fsevent;
 
+#[macro_use]
+extern crate bitflags;
+
+pub mod flags;
+pub mod types;
+
 pub type UnsafeMutableRawPointer = *mut std::ffi::c_void;
 
 pub type FSEventStreamRef = *mut ::std::os::raw::c_void;

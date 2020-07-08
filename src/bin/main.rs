@@ -16,6 +16,8 @@ use crossbeam_channel::{
 use fsevent_sys as fsevent;
 
 use file_events::{
+    flags::FSEventStreamEventFlags,
+    types::EventInfo,
     FSEventStreamCreate,
     FSEventStreamScheduleWithRunLoop,
     FSEventStreamStart,
@@ -29,11 +31,11 @@ use std::{
     time::Duration,
 };
 
-static mut CHANNEL: MaybeUninit<(Sender<Option<String>>, Receiver<Option<String>>)> = MaybeUninit::uninit();
+static mut CHANNEL: MaybeUninit<(Sender<Option<EventInfo>>, Receiver<Option<EventInfo>>)> = MaybeUninit::uninit();
 static CHANNEL_INIT: Once = Once::new();
 
 #[inline]
-fn get_channel() -> &'static (Sender<Option<String>>, Receiver<Option<String>>) {
+fn get_channel() -> &'static (Sender<Option<EventInfo>>, Receiver<Option<EventInfo>>) {
     CHANNEL_INIT.call_once(|| unsafe {
         ptr::write(CHANNEL.as_mut_ptr(), channel::unbounded());
     });
@@ -54,7 +56,6 @@ fn main() {
         let cf_paths = CFArray::from_CFTypes(&paths[..]);
 
         let stream_ref = unsafe {
-            println!("creating stream!");
             let stream_ref = FSEventStreamCreate(
                 fsevent::core_foundation::kCFAllocatorDefault,
                 Some(callback),
@@ -70,10 +71,8 @@ fn main() {
     
             stream_ref
         };
-        println!("stream created!");
 
         unsafe {
-            println!("shceduling with runloop!");
             FSEventStreamScheduleWithRunLoop(
                 stream_ref,
                 cf::runloop::CFRunLoopGetCurrent(),
@@ -85,10 +84,9 @@ fn main() {
             if started {
                 println!("FS Event Stream started!")
             } else {
-                println!("FS Event Stream failed to start!")
+                panic!("FS Event Stream failed to start!")
             }
 
-            println!("running runloop!");
             cf::runloop::CFRunLoopRun();
         };
     });
@@ -109,13 +107,19 @@ extern "C" fn callback(
     _clientCallbackInfo: *mut ffi::c_void,
     _numEvents: usize,
     eventPaths: *mut ffi::c_void,
-    _eventFlags: *const u32,
+    eventFlags: *const u32,
     _eventIds: *const u64,
 ) { 
     let (tx, _rx) = get_channel();
 
     let cf_paths: ItemMutRef<CFArray<CFString>> = unsafe { CFArray::from_mut_void(eventPaths) };
-    for path in cf_paths.iter() {
-        tx.send(Some(path.to_string())).unwrap();
-    }
+
+    let paths: Vec<String> = cf_paths.into_iter().map(|p| p.to_string()).collect();
+    let flags = unsafe { FSEventStreamEventFlags::from_bits_unchecked(*eventFlags) };
+    let info = EventInfo{
+        paths,
+        flags,
+    };
+
+    tx.send(Some(info)).unwrap();
 }
